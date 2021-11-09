@@ -59,7 +59,6 @@ namespace DadProgram
             this.odlbl.Size = new System.Drawing.Size(24, 15);
             this.odlbl.TabIndex = 1;
             this.odlbl.Text = "OD";
-            this.odlbl.Click += new System.EventHandler(this.odlbl_Click);
             // 
             // odTxtBox
             // 
