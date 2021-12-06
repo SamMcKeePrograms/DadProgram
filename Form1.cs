@@ -9,15 +9,37 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using Excel = Microsoft.Office.Interop.Excel;
+using Microsoft.Office.Interop.Excel;
+using System.IO;
+
+public static class Extensions
+{
+    // This is a cool method
+    public static T[] SubArray<T>(this T[] array, int offset, int length)
+    {
+        T[] result = new T[length];
+        Array.Copy(array, offset, result, 0, length);
+        return result;
+    }
+
+    public static String GetString(this char[] array)
+    {
+        string s = new string(array);
+        return s;
+    }
+}
 
 namespace DadProgram
 {
+
     public partial class mainWindowFrm : Form
     {
+        String creator = System.Security.Principal.WindowsIdentity.GetCurrent().Name.Split("\\")[1];
+        
         public mainWindowFrm()
         {
             InitializeComponent();
-            creatorTxtBox.Text = System.Security.Principal.WindowsIdentity.GetCurrent().Name.Split("\\")[1];
+            creatorTxtBox.Text = creator;
         }
 
         private void createBtn_Click(object sender, EventArgs e)
@@ -30,7 +52,7 @@ namespace DadProgram
             {
                 MessageBox.Show("You need to fill out all of the parameters.", "Error");
             } else {
-                Excel.Application excel = null;
+                Microsoft.Office.Interop.Excel.Application excel = null;
                 Excel._Worksheet worksheet = null;
                 Double OD = 0.0 ;
                 int ID= 0;
@@ -41,8 +63,9 @@ namespace DadProgram
 
                 try
                 {
-                    excel = new Excel.Application();
-                    workbook = excel.Workbooks.Open("D:\\Code\\VB\\VB_JSON_Reader\\test.xlsx", Type.Missing, true);
+                    excel = new Microsoft.Office.Interop.Excel.Application();
+                    excel.DisplayAlerts = false;
+                    workbook = excel.Workbooks.Open("C:\\Users\\Mckee\\Documents\\Coding\\C#\\DadProgram\\test.xlsx", false, false);
                     worksheet = workbook.ActiveSheet;
                     numRowWorkSheet = worksheet.UsedRange.Rows.Count;
                 } catch(Exception e__) {
@@ -59,15 +82,16 @@ namespace DadProgram
                     MessageBox.Show(e_.ToString());
                 }
 
-                for (int i = 2; i < worksheet.UsedRange.Rows.Count; i++)
+                for (int i = 2; i < worksheet.UsedRange.Rows.Count + 1; i++)
                 {
                     try
                     {
+                        // MessageBox.Show("i: " + i.ToString() + "count: " + worksheet.UsedRange.Rows.Count.ToString());
                         currentOD = double.Parse(worksheet.Range["A" + i].Value2.ToString());
                         currentID = int.Parse(worksheet.Range["B" + i].Value2.ToString());
                         currentThickness = double.Parse(worksheet.Range["C" + i].Value2.ToString());
 
-                        MessageBox.Show("OD: " + currentOD.ToString() + " | ID: " + currentID.ToString() + " | thickness: " + currentThickness.ToString());
+                        // MessageBox.Show("OD: " + currentOD.ToString() + " | ID: " + currentID.ToString() + " | thickness: " + currentThickness.ToString());
 
                         if (OD == currentOD)
                         {
@@ -92,7 +116,7 @@ namespace DadProgram
                         {
                             createNew = true;
                         }
-                        MessageBox.Show("No sketch was found, Creating a new one.", "New Sketch");
+                        
                         
                     }
                     catch (Exception error)
@@ -103,18 +127,72 @@ namespace DadProgram
                 if (createNew)
                 {
                     MessageBox.Show("No sketch was found, creating a new one.", "New Sketch");
-                    add_data(currentOD, currentID, currentThickness, "TEST", "TEST_CREATOR", worksheet, numRowWorkSheet);
-                    workbook.SaveCopyAs(("test2.xlsx"));
+                    add_data(OD, ID, thickness, get_sketch_number(worksheet), creator, worksheet, numRowWorkSheet);
+                    workbook.Save();
                     workbook.Close();
                     excel.Quit();
                     createNew = false;
-
-                    System.Runtime.InteropServices.Marshal.ReleaseComObject(excel);
-                    System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
-                    System.Runtime.InteropServices.Marshal.ReleaseComObject(worksheet);
-
+                    Marshal.ReleaseComObject(excel);
+                    Marshal.ReleaseComObject(workbook);
+                    Marshal.ReleaseComObject(worksheet);
                 }
-            }       
+            }
+            
+        }
+
+        // This method does not make sure that the AS__ part is the same as the rest of the file
+        private Boolean validate_sketch_number(String sketchNumber, Excel._Worksheet worksheet)
+        {
+            char[] seperatedSketchNumber = sketchNumber.ToArray();
+            char[] lettersPart = seperatedSketchNumber.SubArray(0, 4);
+            char[] numbersPart = seperatedSketchNumber.SubArray(4, 4);
+
+            char[] previousEntry = worksheet.Range["D" + worksheet.UsedRange.Rows.Count].Value2.ToString().ToArray();
+
+            if (int.Parse(previousEntry.SubArray(4,4)) > int.Parse(numbersPart)){
+                return false;
+            } else if (!previousEntry.SubArray(0, 4).ToString().Equals(lettersPart.ToString())){
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+
+        }
+
+        private String get_sketch_number(Excel._Worksheet worksheet)
+        {
+
+            String currentSketchNumber = worksheet.Range["D" + worksheet.UsedRange.Rows.Count].Value2.ToString();
+            char[] seperatedSketchNumber = currentSketchNumber.ToArray();
+            int numberPart = int.Parse(seperatedSketchNumber.SubArray(4, 4).GetString());
+            numberPart += 1;
+            String letterPart = seperatedSketchNumber.SubArray(0, 4).GetString();
+
+            String numberPartString = numberPart.ToString();
+
+            for(int i = 0; i <= (4-numberPartString.Length)+1; i++)
+            {
+                numberPartString = "0" + numberPartString;
+            }
+
+            String newSketchNumber = letterPart + numberPartString;
+
+            MessageBoxButtons btns = MessageBoxButtons.YesNo;
+            DialogResult result = MessageBox.Show("Is " + newSketchNumber + " sketch number OK?", "New Sketch Number Confirmation", btns);
+
+            if (result == DialogResult.No)
+            {
+                NewSketchNumber sketchNumberForm = new NewSketchNumber();
+                sketchNumberForm.ShowDialog();
+                MessageBox.Show(sketchNumberForm.newSketchNumber);
+                return sketchNumberForm.newSketchNumber;
+            }
+            else
+            {
+                return newSketchNumber;
+            }
         }
 
         private Boolean validate_parameters()
